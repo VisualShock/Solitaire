@@ -132,6 +132,7 @@ Game.prototype = {
 	},
 
 	generateCardKits: function() {
+	//generate card data using settings
 		return [
 			{color: 0, suit: 0, number: 1},
 			{color: 0, suit: 0, number: 2},
@@ -204,14 +205,33 @@ Game.prototype = {
 		let selectedDeck = null;
 		let selectedCards = [];
 
+		//this method requires refactoring
 		return function(e) {
 			let deck = e.detail.deck;
 			let cards = e.detail.cards;
+			
+			// handle case when selectedDeck === deck
+
+			if (deck === null) {
+				if (selectedDeck) {
+					selectedDeck.unselectCards();
+				}
+
+				selectedDeck = null;
+				selectedCards = [];
+
+				return;
+			}
 			
 			if (selectedDeck) {
 				if(this.moveCards(selectedDeck, deck, selectedCards)){
 					selectedDeck = null;
 					selectedCards = [];
+					deck.unselectCards();
+				} else {
+					selectedDeck.unselectCards();
+					selectedDeck = deck;
+					selectedCards = cards;
 				}
 			} else {
 				selectedDeck = deck;
@@ -229,6 +249,8 @@ Game.prototype = {
 
 		return false;
 	}
+
+	//add check for game end
 }
 
 Deck.prototype = {
@@ -243,14 +265,11 @@ Deck.prototype = {
 
 	registerEvents: function() {
 		this.$el.addEventListener('card.click', this.onCardClick.bind(this));
+		this.$el.addEventListener('click', this.onClick.bind(this));
 	},
 
 	onCardClick: function(e) {
-		let cardIndex = this.cards.indexOf(e.detail.card);
-		let cards = this.cards.slice(cardIndex);
-
-		this.cards.forEach((card) => card.unselect());
-		cards.forEach((card) => card.select());
+		let cards = this.getSelectedCards(e.detail.card);
 
 		this.$el.dispatchEvent(new CustomEvent('deck.click', {
 			bubbles: true,
@@ -261,11 +280,25 @@ Deck.prototype = {
 		}));
 	},
 
+	getSelectedCards: function(card) {
+		let cardIndex = this.cards.indexOf(card);
+		let cards = this.cards.slice(cardIndex);
+
+		this.unselectCards();
+		cards.forEach((card) => card.select());
+
+		return cards;
+	},
+
+	unselectCards: function() {
+		this.cards.forEach((card) => card.unselect());
+	},
+
 	getCardIndex: function(card) {
 		for(let i = 0; i < this.cards.length; i++) {
 			let currentCard = this.cards[i];
 
-			// refactor this shit
+			// refactor this
 			if (currentCard.color === card.color && currentCard.number === card.number && currentCard.suit === card.suit) {
 				return i;
 			}
@@ -294,12 +327,24 @@ Deck.prototype = {
 	},
 
 	verifyTurn: function(cards) {
+		//Override this method in FinalDeck
 		let upperCard = cards[0];
 		let cardTo = this.cards.slice(-1).pop();
 
-		return upperCard.color != cardTo.color 
-				&& cardTo.number - upperCard.number === 1
-				// or this is king and deck is empty;
+		return (!cardTo && upperCard.number === 13)
+				|| (cardTo && upperCard.color != cardTo.color 
+				&& cardTo.number - upperCard.number === 1);
+				
+	},
+
+	onClick: function(e) {
+		this.$el.dispatchEvent(new CustomEvent('deck.click', {
+			bubbles: true,
+			detail: {
+				deck: this,
+				cards: []
+			}
+		}));
 	}
 }
 
@@ -328,7 +373,7 @@ Card.prototype = {
 
 	onClick: function(e) {
 		e.stopPropagation();
-
+		
 		this.$el.dispatchEvent(new CustomEvent('card.click', {
 			bubbles: true,
 			detail: {
@@ -338,7 +383,7 @@ Card.prototype = {
 	},
 
 	onDoubleClick: function() {
-
+		//implement this!
 	},
 
 	registerEvents: function() {
@@ -348,16 +393,6 @@ Card.prototype = {
 }
 
 DealDeck.prototype = Object.assign(Object.create(Deck.prototype), {
-	onClick: function() {
-
-	},
-
-	registerEvents: function() {
-		Deck.prototype.registerEvents.call(this);
-
-		this.$el.addEventListener('click', this.onClick.bind(this));
-	},
-
 	onClick: function(e) {
 		let closedCard = this.getFirstClosedCard();
 
@@ -366,6 +401,13 @@ DealDeck.prototype = Object.assign(Object.create(Deck.prototype), {
 		} else {
 			this.revert();
 		}
+
+		this.$el.dispatchEvent(new CustomEvent('deck.click', {
+			bubbles: true,
+			detail: {
+				deck: null
+			}
+		}));
 	},
 
 	getFirstClosedCard: function() {
@@ -378,6 +420,18 @@ DealDeck.prototype = Object.assign(Object.create(Deck.prototype), {
 
 	addCards: function() {
 		return false;
+	},
+
+	getSelectedCards: function(card) {
+		card.select();
+
+		return [card];
+	},
+
+	removeCards: function(cards) {
+		let cardIndex = this.getCardIndex(cards[0]);
+
+		this.cards.splice(cardIndex, 1);
 	}
 });
 
