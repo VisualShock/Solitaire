@@ -311,7 +311,8 @@ Deck.prototype = {
 		if (!this.verifyTurn(cards)) {
 			return false;
 		}
-
+		//You should put only 1 card (last) from array to the final deck
+		//So this method probably also have to be overrided
 		for(let i = 0; i < cards.length; i++) {
 			this.$el.appendChild(cards[i].$el);
 			this.cards.push(cards[i]);
